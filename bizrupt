@@ -1,0 +1,351 @@
+<?php
+
+namespace App\Http\Controllers;
+use Illuminate\Http\Request;
+use App\Models\Post;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent;
+use App\Models\Category;
+
+
+//USE USER DEFINED CLASSES HERE
+//use App\FunctionFolder\FunctionFile;
+
+class PostController extends Controller
+{
+    public static function totalPostCount()
+    {
+        $obj=new Post();
+        $tt=$obj->count();
+        return $tt;
+       
+    }
+    function DeleteMultiplePost(Request $req)
+    {
+        $FunctionFile=new FunctionFile();
+       
+        // return $req->post();
+        foreach($req->deleteMultiple as $values)
+        {
+            $res=Post::find($values);
+            if($res->delete())
+            {
+                $message=204;
+            }
+            else
+            {
+                $message="error";
+            }
+
+        }
+        
+            
+            if($message==204)
+            {
+                $FunctionFile->Alert("Deleted Successfully");
+                return redirect('admin/show_post');
+            }
+            else
+            {
+                $FunctionFile->Alert("Try after some time");
+                return redirect('admin/show_post');
+            }
+       
+       
+    }
+
+    public function ShowPost()
+    {
+         $obj= new Post();
+        $postData=$obj->join('category', 'post.category_id', '=', 'category.id') ->select('post.*', 'category.categoryName')->orderBy('id','DESC')->get();
+        return view('admin.showPost',['post'=>$postData]);
+    }
+
+    
+    public function home()
+    {
+         $obj= new Post();
+        $postData=$obj->join('category', 'post.category', '=', 'category.id') ->select('post.*', 'category.categoryName')->get();
+        return view('front.index',['postData'=>$postData]);
+    }
+    public function search()
+    {
+        if(!empty($_GET['s']))
+        {
+        $val=$_GET['s'];
+      
+        // Post::where('email', Input::get('email'))
+        // ->orWhere('name', 'like', '%' . Input::get('name') . '%')->get();
+        $datacount=Post::join('category', 'post.category_id', '=', 'category.id')
+        ->join('writers', 'post.writers_id', '=', 'writers.id')
+         ->select('post.*', 'category.categoryName','writers.writers_name')
+         ->where('name','like','%'.$val.'%')
+         ->count();
+         if($datacount>0)
+         {
+                $data=Post::join('category', 'post.category_id', '=', 'category.id')
+            ->join('writers', 'post.writers_id', '=', 'writers.id')
+            ->select('post.*', 'category.categoryName','writers.writers_name')
+            ->where('name','like','%'.$val.'%')
+            ->get();
+         }
+         else
+         {
+            return view('front.errorPage.notFoundPage');
+         }
+
+        
+        
+        }
+        else
+        {
+            $data=Post::join('category', 'post.category_id', '=', 'category.id')
+            ->join('writers', 'post.writers_id', '=', 'writers.id')
+             ->select('post.*', 'category.categoryName','writers.writers_name')
+            // ->where('name','like','%'.$val.'%')
+             ->get();
+        }
+        
+        return view('front.search',['data'=>$data]); 
+        
+        
+        
+        
+    }
+    function createPost(Request $req)
+     {
+       $obj= new Post();
+       $FunctionFile = new FunctionFile();
+      
+        $req->validate([
+            'name'=>'min:5|max:3000|required',
+            'description'=>'min:5|max:5000|required',
+            'content'=>'min:1|required',
+            'tags'=>'min:1|max:3000|required',
+            'image'=>'mimes:jpeg,jpg,png,gif|required|max:10000',
+            'metaTitle'=>'min:1|max:5000|required',
+            'metaDescription'=>'min:1|max:5000|required',
+            'metaKeywords'=>'min:1|max:5000|required',
+            'postSlug'=>'min:1|max:5000|required',
+            'podcast'=>'mimes:mp3,mp4,3gp|max:10000',
+            'read_time'=>'min:1|required',
+            'writers'=>'min:1|required',
+            
+            
+        ]);
+        $current_timestamp = Carbon::now()->timestamp; // Produces something like 1552296328
+        // if($req->hasFile('podcast'))
+        // {
+        //     if($req->file()->isValid())
+        //     {
+        //         $podcastName="PODCAST".rand(1111,9999).time().'.'.$req->podcast->extension();
+        //         $obj->podcast=$podcastName;
+        //         $req->podcast->move(public_path('admin/images'),$podcastName);
+        //     }
+        // }
+      
+         $imageName = time().'.'.$req->image->extension();
+         if(!empty($req->podcast)) 
+         {
+         $podcast12 = time().'.'.$req->podcast->extension();
+         } else
+         {
+            $podcast12="";
+         }
+        //  $podcastName="PODCAST".rand(1111,9999).time().'.'.$req->podcast->extension();
+        $obj->name=$req->input('name');
+        $obj->description=$req->input('description');
+        $obj->category_id=$req->input('category');
+        $obj->tags_id=$req->input('tags');
+        $obj->status=$req->input('status');
+        $obj->content=$req->input('content');
+        $obj->meta_title=$req->input('metaTitle');
+        $obj->meta_description=$req->input('metaDescription');
+        $obj->meta_keyword=$req->input('metaKeywords');
+        $obj->read_time=$req->input('read_time');
+        $obj->strtotime=$current_timestamp;
+        $obj->image=$imageName;
+        $obj->writers_id=$req->writers;
+        $obj->podcast=$podcast12;
+        $obj->post_date_time=$req->dateTime;
+
+        //$slug=str_replace(' ','-',$req->name); //generating slug
+        $obj->slug=$req->postSlug;
+        $req->image->move(public_path('admin/images'),$imageName);
+        if(!empty($podcast12))
+        {
+        $req->podcast->move(public_path('admin/images'),$podcast12);
+        }
+        
+    //     // STORE IMAGE
+         
+    //     // public/images/file.png
+    
+         if($obj->save())
+         {  
+             //$FunctionFile->Message('success','Created successfully','show_post',1000); 
+             $FunctionFile->Alert("Created Successfully");
+             return redirect('admin/show_post')->with('success', 'Created successfully');
+            
+                
+        }
+         else
+         {
+            $FunctionFile->Alert("Try after some time");
+            return redirect('admin/create_post')->with('danger', 'Try after some time'); 
+              
+         }
+
+        //$name=$req->input('image');
+
+    }
+    
+
+    function ShowForUpdatePost(Request $req,$id)
+    {
+        //return $req->route('id');
+        //SHOW DATA FROM CATEGORY CONTROLLER
+        $category=new Category();
+        $allCategory=$category->all();
+
+        $obj= new Post();
+        $postData=$obj->where('id',$id)->first();
+        return view('admin.updatePostData',['postData'=>$postData,'data'=>$allCategory]);
+    }
+
+    function UpdatePost(Request $req)
+    {
+        //return $req->post();
+       
+        $obj= new Post();
+        $FunctionFile = new FunctionFile();
+        $req->validate([
+            'name'=>'min:5|max:3000',
+            'description'=>'min:5|max:5000',
+            'content'=>'min:1',
+            'tags'=>'min:1|max:3000',
+            'image'=>'mimes:jpeg,jpg,png,gif|max:10000',
+            'metaTitle'=>'min:1|max:5000',
+            'metaDescription'=>'min:1|max:5000',
+            'meta_keyword'=>'min:1|max:5000',
+            'podcast'=>'mimes:jpeg,jpg,png,gif,mp3,mp4,vlc,3gp|max:10000',
+            'slug'=>'min:1|max:1000',
+            'read_time'=>'min:1',
+            'writers'=>'min:1',
+            
+        ]);
+        if ($req->hasFile('image'))
+        {
+            if ($req->file('image')->isValid())
+            {
+                $imageName ="IMG".rand(1111,9999).time().'.'.$req->image->extension();
+                $req->image->move(public_path('admin/images'),$imageName);
+                
+                $array1=array('image'=>$imageName);
+                $obj->where('id',$req->id)->update($array1);
+            }
+        }
+
+        if ($req->hasFile('podcast'))
+        {
+            if ($req->file('podcast')->isValid())
+            {
+                $podcastName="PODCAST".rand(1111,9999).time().'.'.$req->podcast->extension();
+                $req->podcast->move(public_path('admin/images'),$podcastName);
+                
+                $array2=array('podcast'=>$podcastName);
+                $obj->where('id',$req->id)->update($array2);
+            }
+        }
+         
+        
+
+        $array=array('name'=>$req->name,'description'=>$req->description,'content'=>$req->content,'tags_id'=>$req->tags,'status'=>$req->status,'meta_title'=>$req->metaTitle,'meta_description'=>$req->metaDescription,'meta_keyword'=>$req->metaKeywords,'category_id'=>$req->category,'slug'=>$req->slug,'read_time'=>$req->read_time,'writers_id'=>$req->writers,'post_date_time'=>$req->dateTime);
+    $response=$obj->where('id',$req->id)->update($array);
+    //print_r($response);
+    if($response)
+    {
+        
+        $FunctionFile->Alert("Updated Successfully");
+        return redirect('admin/show_post');
+    }
+    else
+    {
+      
+        $FunctionFile->Alert("Try after some time");
+        return redirect('admin/show_post');
+    }
+        
+       
+    }
+
+    function DeletePost(Request $req ,$id)
+    {
+        $FunctionFile = new FunctionFile();
+        //return $id;
+         //$req->route('id');
+         $obj= new Post();
+         $response=$obj->find($id);// ID SHOULD BE PRIMARY KEY IN TABLE WITH ID NAME
+         if($response->delete())
+         {
+            $FunctionFile->AlertRedirect("Deleted Successfully","../show_post");
+         }
+         else
+
+         {
+            $FunctionFile->AlertRedirect("Try after some time!","../show_post");
+         }
+        // $examData=$obj->get();
+        // return view('createTest',['examData'=>$examData]);
+    }
+
+    function updateFrontHighlight(Request $req)
+    { 
+        $obj= new Post();
+        $array=array('highlight'=>0);
+        $array1=array('highlight'=>1);
+        $res=Post::findOrFail($req->id);
+        //already selected
+        $alr_sel=$obj->where('highlight',1)->update($array);
+        $res->update($array1);
+        if($alr_sel)
+        {
+            
+            return response()->json(['message'=>"updated Successfully"]);
+        }
+        else
+        {
+            return response()->json(["message"=>"try after some time later"]);
+        }  
+    }
+
+
+    function updateFrontProfileHighlight(Request $req)
+    { 
+        $obj= new Post();
+        $current_timestamp = Carbon::now()->timestamp;
+        $array=array('profile_highlight'=>0);
+        $array1=array('profile_highlight'=>1,'strtotime'=>$current_timestamp);
+        $res=Post::findOrFail($req->id);
+        //already selected
+        $posts=Post::where('profile_highlight',1)->orderBy('strtotime','ASC')->limit(1)->first();
+        $postscount=Post::where('profile_highlight',1)->count();
+        if($postscount >=2)
+        {
+            $alr_sel=$obj->where('id',$posts->id)->update($array);
+        }
+        
+        if($res)
+        {
+            $res->update($array1);
+            return response()->json(['message'=>"updated Successfully"]);
+        }
+        else
+        {
+            return response()->json(["message"=>"try after some time later"]);
+        }  
+    }
+
+
+    
+}
